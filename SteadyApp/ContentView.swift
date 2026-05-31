@@ -9,6 +9,7 @@ struct LogEvent: Identifiable, Codable {
 }
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("dailyLoad") private var dailyLoad: Int = 0
     @AppStorage("streak") private var streak: Int = 0
     @AppStorage("flexMealsRemaining") private var flexMealsRemaining: Int = 2
@@ -62,6 +63,12 @@ struct ContentView: View {
                 migrateStreakAndFlexIfNeeded()
                 rolloverIfNewDay()
                 loadEvents()
+            }
+            .onChange(of: scenePhase) { newPhase in
+                if newPhase == .active {
+                    rolloverIfNewDay()
+                    loadEvents()
+                }
             }
             .alert("Reset today?", isPresented: $showResetAlert) {
                 Button("Cancel", role: .cancel) {}
@@ -176,6 +183,7 @@ struct ContentView: View {
             }
 
             Button {
+                rolloverIfNewDay()
                 guard flexMealsRemaining > 0 else { return }
                 flexMealsRemaining -= 1
                 usedFlexToday = true
@@ -332,6 +340,7 @@ struct ContentView: View {
     }
 
     private func addEvent(title: String, points: Int, emoji: String) {
+        rolloverIfNewDay()
         dailyLoad += points
         events.append(LogEvent(id: UUID(), title: title, points: points, emoji: emoji, date: Date()))
         saveEvents()
