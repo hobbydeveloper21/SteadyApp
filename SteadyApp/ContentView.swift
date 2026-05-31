@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var shouldScrollToTodayLog = false
 
     private let calendar = Calendar.current
+    private let secondaryTextColor = Color.white.opacity(0.78)
 
     var body: some View {
         NavigationStack {
@@ -89,7 +90,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(greeting)
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(secondaryTextColor)
                 Text("Steady")
                     .font(.largeTitle.bold())
                     .foregroundColor(.white)
@@ -157,50 +158,6 @@ struct ContentView: View {
         .shadow(color: .green.opacity(0.25), radius: 30, y: 18)
     }
 
-    private var flexMealCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Flex Meals")
-                        .font(.title3.bold())
-                        .foregroundColor(.white)
-                    Text("Use for celebrations or social meals.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                HStack(spacing: 8) {
-                    ForEach(0..<2, id: \.self) { index in
-                        Text("\(index + 1)")
-                            .font(.headline.bold())
-                            .foregroundColor(index < flexMealsRemaining ? .black : .secondary)
-                            .frame(width: 42, height: 42)
-                            .background(index < flexMealsRemaining ? Color.yellow : Color.white.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                }
-            }
-
-            Button {
-                rolloverIfNewDay()
-                guard flexMealsRemaining > 0 else { return }
-                flexMealsRemaining -= 1
-                usedFlexToday = true
-                addEvent(title: "Flex Meal", points: 0, emoji: "🎉")
-            } label: {
-                Text(flexMealsRemaining > 0 ? "Use Flex Meal" : "No Flex Meals Left")
-                    .font(.headline)
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(flexMealsRemaining > 0 ? Color.yellow : Color.gray)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
-            .disabled(flexMealsRemaining == 0)
-        }
-        .cardStyle()
-    }
-
     private var mealLoggingCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionTitle("Log Meal", subtitle: "Quick estimate of metabolic load.")
@@ -245,7 +202,7 @@ struct ContentView: View {
             if events.isEmpty {
                 Text("No meals or activities logged yet.")
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(secondaryTextColor)
             } else {
                 ForEach(events.reversed()) { event in
                     SwipeToDeleteLogRow(
@@ -261,6 +218,50 @@ struct ContentView: View {
         .cardStyle()
     }
 
+    private var flexMealCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Flex Meals")
+                        .font(.title3.bold())
+                        .foregroundColor(.white)
+                    Text("Use for celebrations or social meals.")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryTextColor)
+                }
+                Spacer()
+                HStack(spacing: 8) {
+                    ForEach(0..<2, id: \.self) { index in
+                        Text("\(index + 1)")
+                            .font(.headline.bold())
+                            .foregroundColor(index < flexMealsRemaining ? .black : secondaryTextColor)
+                            .frame(width: 42, height: 42)
+                            .background(index < flexMealsRemaining ? Color.yellow : Color.white.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                }
+            }
+
+            Button {
+                rolloverIfNewDay()
+                guard flexMealsRemaining > 0 else { return }
+                flexMealsRemaining -= 1
+                usedFlexToday = true
+                addEvent(title: "Flex Meal", points: 0, emoji: "🎉")
+            } label: {
+                Text(flexMealsRemaining > 0 ? "Use Flex Meal" : "No Flex Meals Left")
+                    .font(.headline)
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(flexMealsRemaining > 0 ? Color.yellow : Color.gray)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .disabled(flexMealsRemaining == 0)
+        }
+        .cardStyle()
+    }
+
     private func sectionTitle(_ title: String, subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(title)
@@ -268,7 +269,7 @@ struct ContentView: View {
                 .foregroundColor(.white)
             Text(subtitle)
                 .font(.subheadline)
-                .foregroundColor(.secondary)
+                .foregroundColor(secondaryTextColor)
         }
     }
 
@@ -282,7 +283,7 @@ struct ContentView: View {
                     .foregroundColor(.white)
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.7))
+                    .foregroundColor(.white.opacity(0.78))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
@@ -342,8 +343,6 @@ struct ContentView: View {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: Date())
     }
-
-
 
     private func weekKey() -> String {
         let components = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())
@@ -408,7 +407,6 @@ struct ContentView: View {
     }
 }
 
-
 struct SwipeToDeleteLogRow: View {
     let event: LogEvent
     let pointsText: String
@@ -443,7 +441,7 @@ struct SwipeToDeleteLogRow: View {
                     .foregroundColor(.white)
                 Spacer()
                 Text(pointsText)
-                    .foregroundColor(event.points > 0 ? .orange : event.points < 0 ? .green : .secondary)
+                    .foregroundColor(event.points > 0 ? .orange : event.points < 0 ? .green : .white.opacity(0.78))
                     .font(.headline)
             }
             .padding(.vertical, 10)
