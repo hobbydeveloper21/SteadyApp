@@ -40,7 +40,6 @@ struct ContentView: View {
                             streakCard
                             mealLoggingCard
                             activityLoggingCard
-                            coachCard
                             historyCard
                                 .id("todayLog")
                             flexMealCard
@@ -238,23 +237,6 @@ struct ContentView: View {
         .cardStyle()
     }
 
-    private var coachCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Coach")
-                .font(.title3.bold())
-                .foregroundColor(.white)
-            Text(coachMessage)
-                .font(.body)
-                .foregroundColor(.white.opacity(0.82))
-                .lineSpacing(4)
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-        .cardStyle()
-    }
-
     private var historyCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Today")
@@ -318,18 +300,6 @@ struct ContentView: View {
         if dailyLoad <= 5 { return "Slight Load" }
         if dailyLoad <= 15 { return "Elevated" }
         return "Recovery Needed"
-    }
-
-    private var coachMessage: String {
-        if dailyLoad <= 0 {
-            return "You’re balanced today. Keep the streak going with a simple, steady dinner."
-        } else if dailyLoad <= 5 {
-            return "A short walk tonight would likely bring you back to a Stable Day."
-        } else if dailyLoad <= 15 {
-            return "You’re carrying some metabolic load. A workout or longer walk can help protect the streak."
-        } else {
-            return "Make this a recovery evening: light dinner, walk if possible, and prioritize sleep."
-        }
     }
 
     private var greeting: String {
