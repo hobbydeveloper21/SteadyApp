@@ -19,7 +19,6 @@ struct ContentView: View {
     @AppStorage("usedFlexToday") private var usedFlexToday: Bool = false
 
     @State private var events: [LogEvent] = []
-    @State private var showResetAlert = false
     @State private var shouldScrollToTodayLog = false
 
     private let calendar = Calendar.current
@@ -53,7 +52,6 @@ struct ContentView: View {
                     .onChange(of: events.count) { _ in
                         guard shouldScrollToTodayLog else { return }
                         shouldScrollToTodayLog = false
-
                         withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
                             proxy.scrollTo("todayLog", anchor: .top)
                         }
@@ -72,22 +70,6 @@ struct ContentView: View {
                     loadEvents()
                 }
             }
-            .alert("Reset today?", isPresented: $showResetAlert) {
-                Button("Cancel", role: .cancel) {}
-                Button("Reset", role: .destructive) {
-                    dailyLoad = 0
-
-                    if usedFlexToday && flexMealsRemaining < 2 {
-                        flexMealsRemaining += 1
-                    }
-
-                    usedFlexToday = false
-                    events = []
-                    saveEvents()
-                }
-            } message: {
-                Text("This clears today's logged meals and activities.")
-            }
         }
     }
 
@@ -104,17 +86,6 @@ struct ContentView: View {
             }
 
             Spacer()
-
-            Button {
-                showResetAlert = true
-            } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.title3.weight(.semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 48, height: 48)
-                    .background(Color.white.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
         }
     }
 
@@ -127,7 +98,6 @@ struct ContentView: View {
             HStack(alignment: .lastTextBaseline, spacing: 8) {
                 Text("\(streak)")
                     .font(.system(size: 72, weight: .black, design: .rounded))
-
                 Text("Stable Days")
                     .font(.title3.bold())
             }
@@ -138,7 +108,6 @@ struct ContentView: View {
                     Text("Today's Load")
                         .font(.caption)
                         .foregroundColor(.black.opacity(0.6))
-
                     Text(pointsText(dailyLoad))
                         .font(.title.bold())
                         .foregroundColor(.black)
@@ -150,7 +119,6 @@ struct ContentView: View {
                     Text("Status")
                         .font(.caption)
                         .foregroundColor(.black.opacity(0.6))
-
                     Text(statusLabel)
                         .font(.title3.bold())
                         .foregroundColor(.black)
@@ -180,15 +148,12 @@ struct ContentView: View {
                 actionButton(title: "Low Carb", subtitle: "0 Load", emoji: "🥗", color: .green) {
                     addEvent(title: "Low Carb Meal", points: 0, emoji: "🥗")
                 }
-
                 actionButton(title: "Medium Carb", subtitle: "+5 Load", emoji: "🍓🫐", color: .orange) {
                     addEvent(title: "Medium Carb Meal", points: 5, emoji: "🍓🫐")
                 }
-
                 actionButton(title: "High Carb", subtitle: "+10 Load", emoji: "🍚🍕", color: .red) {
                     addEvent(title: "High Carb Meal", points: 10, emoji: "🍚🍕")
                 }
-
                 actionButton(title: "Photo", subtitle: "Coming soon", emoji: "📷", color: .gray) {
                     addEvent(title: "Photo Meal", points: 5, emoji: "📷")
                 }
@@ -199,15 +164,14 @@ struct ContentView: View {
 
     private var activityLoggingCard: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle("Log Activity", subtitle: "Recovery actions reduce load.")
+            sectionTitle("Log Activity", subtitle: "Exercise reduces load.")
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                actionButton(title: "Low Activity", subtitle: "-5 Recovery", emoji: "🚶", color: .blue) {
-                    addEvent(title: "Low Activity", points: -5, emoji: "🚶")
+                actionButton(title: "Low Intensity", subtitle: "-5 Recovery", emoji: "🚶", color: .blue) {
+                    addEvent(title: "Low Intensity", points: -5, emoji: "🚶")
                 }
-
-                actionButton(title: "High Intensity", subtitle: "-10 Recovery", emoji: "🏃🏋️🚴", color: .purple) {
-                    addEvent(title: "High Intensity", points: -10, emoji: "🏃🏋️🚴")
+                actionButton(title: "High Intensity", subtitle: "-10 Recovery", emoji: "‍🏃‍♂️🏋️‍♂️🚴", color: .purple) {
+                    addEvent(title: "High Intensity", points: -10, emoji: "‍🏃‍♂️🏋️‍♂️🚴")
                 }
             }
         }
@@ -244,7 +208,6 @@ struct ContentView: View {
                     Text("Flex Meals")
                         .font(.title3.bold())
                         .foregroundColor(.white)
-
                     Text("Use for celebrations or social meals.")
                         .font(.subheadline)
                         .foregroundColor(secondaryTextColor)
@@ -267,10 +230,9 @@ struct ContentView: View {
             Button {
                 rolloverIfNewDay()
                 guard flexMealsRemaining > 0 else { return }
-
                 flexMealsRemaining -= 1
                 usedFlexToday = true
-                addEvent(title: "Flex Meal", points: 0, emoji: "")
+                addEvent(title: "Flex Meal", points: 0, emoji: "🎉")
             } label: {
                 Text(flexMealsRemaining > 0 ? "Use Flex Meal" : "No Flex Meals Left")
                     .font(.headline)
@@ -290,7 +252,6 @@ struct ContentView: View {
             Text(title)
                 .font(.title3.bold())
                 .foregroundColor(.white)
-
             Text(subtitle)
                 .font(.subheadline)
                 .foregroundColor(secondaryTextColor)
@@ -302,11 +263,9 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(emoji)
                     .font(.title2)
-
                 Text(title)
                     .font(.headline)
                     .foregroundColor(.white)
-
                 Text(subtitle)
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.78))
@@ -348,7 +307,9 @@ struct ContentView: View {
         var updatedEvents = events
         updatedEvents.removeAll { $0.id == event.id }
         events = updatedEvents
-        dailyLoad = updatedEvents.reduce(0) { total, event in total + event.points }
+        dailyLoad = updatedEvents.reduce(0) { total, event in
+            total + event.points
+        }
 
         let remainingFlexEvents = updatedEvents.filter { $0.title == "Flex Meal" }.count
         flexMealsRemaining = max(0, min(2, 2 - remainingFlexEvents))
@@ -376,14 +337,12 @@ struct ContentView: View {
     private func resetFlexMealsIfNewWeek() {
         let currentWeek = weekKey()
         guard lastFlexResetWeek != currentWeek else { return }
-
         flexMealsRemaining = 2
         lastFlexResetWeek = currentWeek
     }
 
     private func migrateStreakAndFlexIfNeeded() {
         guard !didRunStreakZeroMigration else { return }
-
         streak = 0
         flexMealsRemaining = 2
         lastFlexResetWeek = weekKey()
@@ -428,7 +387,6 @@ struct ContentView: View {
               let decoded = try? JSONDecoder().decode([LogEvent].self, from: data) else {
             return
         }
-
         events = decoded.filter { calendar.isDateInToday($0.date) }
     }
 }
@@ -463,12 +421,9 @@ struct SwipeToDeleteLogRow: View {
             HStack {
                 Text(event.emoji)
                     .font(.title2)
-
                 Text(event.title)
                     .foregroundColor(.white)
-
                 Spacer()
-
                 Text(pointsText)
                     .foregroundColor(event.points > 0 ? .orange : event.points < 0 ? .green : .white.opacity(0.78))
                     .font(.headline)
