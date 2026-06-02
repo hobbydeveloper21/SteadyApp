@@ -17,9 +17,10 @@ struct ContentView: View {
     @AppStorage("didRunStreakZeroMigration") private var didRunStreakZeroMigration: Bool = false
     @AppStorage("lastFlexResetWeek") private var lastFlexResetWeek: String = ""
     @AppStorage("usedFlexToday") private var usedFlexToday: Bool = false
-
+    
     @State private var events: [LogEvent] = []
     @State private var shouldScrollToTodayLog = false
+    @StateObject private var healthKitManager = HealthKitManager()
 
     private let calendar = Calendar.current
     private let secondaryTextColor = Color.white.opacity(0.78)
@@ -44,6 +45,7 @@ struct ContentView: View {
                             historyCard
                                 .id("todayLog")
                             flexMealCard
+                            healthKitCard
                             Spacer(minLength: 80)
                         }
                         .padding(.horizontal, 20)
@@ -63,11 +65,13 @@ struct ContentView: View {
                 migrateStreakAndFlexIfNeeded()
                 rolloverIfNewDay()
                 loadEvents()
+                healthKitManager.refreshTodayMetrics()
             }
             .onChange(of: scenePhase) { newPhase in
                 if newPhase == .active {
                     rolloverIfNewDay()
                     loadEvents()
+                    healthKitManager.refreshTodayMetrics()
                 }
             }
         }
@@ -245,6 +249,73 @@ struct ContentView: View {
             .disabled(flexMealsRemaining == 0)
         }
         .cardStyle()
+    }
+
+    
+
+    private var healthKitCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Apple Health")
+                        .font(.title3.bold())
+                        .foregroundColor(.white)
+                    Text(healthKitManager.isAuthorized ? "Connected to today's activity data." : "Connect steps, workouts, and active energy.")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryTextColor)
+                }
+
+                Spacer()
+
+                Text(healthKitManager.isAuthorized ? "✅" : "❤️")
+                    .font(.title2)
+            }
+
+            if healthKitManager.isAuthorized {
+                HStack(spacing: 10) {
+                    healthMetricPill(
+                        title: "Steps",
+                        value: "\(Int(healthKitManager.todaySteps))"
+                    )
+                    healthMetricPill(
+                        title: "Energy",
+                        value: "\(Int(healthKitManager.todayActiveEnergy)) kcal"
+                    )
+                }
+            }
+
+            Button {
+                if healthKitManager.isAuthorized {
+                    healthKitManager.refreshTodayMetrics()
+                } else {
+                    healthKitManager.requestAuthorization()
+                }
+            } label: {
+                Text(healthKitManager.isAuthorized ? "Refresh Apple Health Data" : "Connect Apple Health")
+                    .font(.headline)
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(healthKitManager.isAuthorized ? Color.green : Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+        }
+        .cardStyle()
+    }
+
+    private func healthMetricPill(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(secondaryTextColor)
+            Text(value)
+                .font(.headline.bold())
+                .foregroundColor(.white)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func sectionTitle(_ title: String, subtitle: String) -> some View {
