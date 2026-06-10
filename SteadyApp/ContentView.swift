@@ -12,7 +12,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("dailyLoad") private var dailyLoad: Int = 0
     @AppStorage("streak") private var streak: Int = 0
-    @AppStorage("flexMealsRemaining") private var flexMealsRemaining: Int = 2
+    @AppStorage("flexMealsRemaining") private var flexMealsRemaining: Int = 1
     @AppStorage("lastSavedDay") private var lastSavedDay: String = ""
     @AppStorage("didRunStreakZeroMigration") private var didRunStreakZeroMigration: Bool = false
     @AppStorage("lastFlexResetWeek") private var lastFlexResetWeek: String = ""
@@ -46,6 +46,8 @@ struct ContentView: View {
                                 .id("todayLog")
                             flexMealCard
                             healthKitCard
+                            zone2PlusCard
+                            weeklyRunsCard
                             Spacer(minLength: 80)
                         }
                         .padding(.horizontal, 20)
@@ -62,16 +64,26 @@ struct ContentView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
+                restoreFromICloudIfAvailable()
+                clampFlexMealsToWeeklyLimit()
                 migrateStreakAndFlexIfNeeded()
                 rolloverIfNewDay()
                 loadEvents()
+                saveStateToICloud()
                 healthKitManager.refreshTodayMetrics()
+                healthKitManager.refreshRunsInPastWeek()
+                healthKitManager.refreshZone2PlusMinutesInPastWeek()
             }
             .onChange(of: scenePhase) { newPhase in
                 if newPhase == .active {
+                    restoreFromICloudIfAvailable()
+                    clampFlexMealsToWeeklyLimit()
                     rolloverIfNewDay()
                     loadEvents()
+                    saveStateToICloud()
                     healthKitManager.refreshTodayMetrics()
+                    healthKitManager.refreshRunsInPastWeek()
+                    healthKitManager.refreshZone2PlusMinutesInPastWeek()
                 }
             }
         }
@@ -149,17 +161,14 @@ struct ContentView: View {
             sectionTitle("Log Meal", subtitle: "Quick estimate of metabolic load.")
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                actionButton(title: "Low Carb", subtitle: "0 Load", emoji: "🥗", color: .green) {
-                    addEvent(title: "Low Carb Meal", points: 0, emoji: "🥗")
+                actionButton(title: "Low Carb", subtitle: "0 Load", emoji: "🥩🥗", color: .green) {
+                    addEvent(title: "Low Carb Meal", points: 0, emoji: "🥩🥗")
                 }
                 actionButton(title: "Medium Carb", subtitle: "+5 Load", emoji: "🍓🫐", color: .orange) {
                     addEvent(title: "Medium Carb Meal", points: 5, emoji: "🍓🫐")
                 }
                 actionButton(title: "High Carb", subtitle: "+10 Load", emoji: "🍚🍕", color: .red) {
                     addEvent(title: "High Carb Meal", points: 10, emoji: "🍚🍕")
-                }
-                actionButton(title: "Photo", subtitle: "Coming soon", emoji: "📷", color: .gray) {
-                    addEvent(title: "Photo Meal", points: 5, emoji: "📷")
                 }
             }
         }
@@ -215,12 +224,15 @@ struct ContentView: View {
                     Text("Use for celebrations or social meals.")
                         .font(.subheadline)
                         .foregroundColor(secondaryTextColor)
+                    Text("Resets \(nextFlexResetText).")
+                        .font(.caption)
+                        .foregroundColor(secondaryTextColor)
                 }
 
                 Spacer()
 
                 HStack(spacing: 8) {
-                    ForEach(0..<2, id: \.self) { index in
+                    ForEach(0..<1, id: \.self) { index in
                         Text("\(index + 1)")
                             .font(.headline.bold())
                             .foregroundColor(index < flexMealsRemaining ? .black : secondaryTextColor)
@@ -284,23 +296,244 @@ struct ContentView: View {
                 }
             }
 
-            Button {
-                if healthKitManager.isAuthorized {
-                    healthKitManager.refreshTodayMetrics()
-                } else {
+            if !healthKitManager.isAuthorized {
+                Button {
                     healthKitManager.requestAuthorization()
+                } label: {
+                    Text("Connect Apple Health")
+                        .font(.headline)
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-            } label: {
-                Text(healthKitManager.isAuthorized ? "Refresh Apple Health Data" : "Connect Apple Health")
-                    .font(.headline)
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(healthKitManager.isAuthorized ? Color.green : Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
         }
         .cardStyle()
+    }
+
+
+
+    private var zone2PlusCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Zone 2+ This Week")
+                        .font(.title3.bold())
+                        .foregroundColor(.white)
+                    Text(zone2PlusSubtitle)
+                        .font(.subheadline)
+                        .foregroundColor(secondaryTextColor)
+                }
+
+                Spacer()
+
+                Text("❤️‍🔥")
+                    .font(.title2)
+            }
+
+            zone2TotalRow
+
+            if healthKitManager.isAuthorized {
+                if healthKitManager.isLoadingZone2Plus {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                }
+
+                VStack(spacing: 8) {
+                    ForEach(zone2Rows) { day in
+                        zone2DayRow(day)
+                    }
+                }
+
+                if let errorMessage = healthKitManager.zone2PlusErrorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(zone2Rows) { day in
+                        zone2DayRow(day)
+                    }
+                }
+
+                Text("Connect Apple Health above to calculate Zone 2+ minutes from workout heart-rate samples.")
+                    .font(.subheadline)
+                    .foregroundColor(secondaryTextColor)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var zone2PlusSubtitle: String {
+        guard healthKitManager.isAuthorized else {
+            return "Workout minutes at Zone 2 or above."
+        }
+
+        let threshold = healthKitManager.zone2PlusThresholdBPM
+
+        if threshold > 0 {
+            return "Workout minutes at Zone 2 or above · threshold \(threshold)+ bpm"
+        }
+
+        return "Workout minutes at Zone 2 or above."
+    }
+
+    private var zone2TotalMinutes: Int {
+        zone2Rows.reduce(0) { $0 + $1.minutes }
+    }
+
+    private var zone2TotalRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Weekly Total")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Text("Zone 2+ minutes")
+                    .font(.caption)
+                    .foregroundColor(secondaryTextColor)
+            }
+
+            Spacer()
+
+            Text("\(zone2TotalMinutes) min")
+                .font(.title3.bold())
+                .foregroundColor(zone2TotalMinutes > 0 ? .green : secondaryTextColor)
+        }
+        .padding(14)
+        .background(Color.white.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var zone2Rows: [Zone2DaySummary] {
+        if !healthKitManager.zone2PlusByDay.isEmpty {
+            return healthKitManager.zone2PlusByDay
+        }
+
+        let today = calendar.startOfDay(for: Date())
+        return stride(from: 6, through: 0, by: -1).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else {
+                return nil
+            }
+            return Zone2DaySummary(date: date, minutes: 0)
+        }
+    }
+
+    private func zone2DayRow(_ day: Zone2DaySummary) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(day.weekdayText)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Text(day.dateText)
+                    .font(.caption)
+                    .foregroundColor(secondaryTextColor)
+            }
+
+            Spacer()
+
+            Text("\(day.minutes) min")
+                .font(.headline.bold())
+                .foregroundColor(day.minutes > 0 ? .green : secondaryTextColor)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+
+    private var weeklyRunsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Runs This Week")
+                        .font(.title3.bold())
+                        .foregroundColor(.white)
+                    Text(weeklyRunsSubtitle)
+                        .font(.subheadline)
+                        .foregroundColor(secondaryTextColor)
+                }
+
+                Spacer()
+
+                Text("🏃‍♂️")
+                    .font(.title2)
+            }
+
+            if healthKitManager.isAuthorized {
+                if healthKitManager.isLoadingRuns {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                } else if healthKitManager.runsInPastWeek.isEmpty {
+                    Text("No running workouts found in the past 7 days.")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryTextColor)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(healthKitManager.runsInPastWeek) { run in
+                            weeklyRunRow(run)
+                        }
+                    }
+                }
+
+                if let errorMessage = healthKitManager.runsErrorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            } else {
+                Text("Connect Apple Health above to see your recent runs.")
+                    .font(.subheadline)
+                    .foregroundColor(secondaryTextColor)
+            }
+        }
+        .cardStyle()
+    }
+
+    private var weeklyRunsSubtitle: String {
+        guard healthKitManager.isAuthorized else {
+            return "Recent running workouts from Apple Health."
+        }
+
+        let count = healthKitManager.runsInPastWeek.count
+        if count == 1 { return "1 run in the past 7 days." }
+        return "\(count) runs in the past 7 days."
+    }
+
+    private func weeklyRunRow(_ run: RunWorkoutSummary) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(runDateText(run.startDate))
+                    .font(.headline)
+                    .foregroundColor(.white)
+
+                Spacer()
+
+                Text(run.durationText)
+                    .font(.subheadline.bold())
+                    .foregroundColor(.green)
+            }
+
+            HStack(spacing: 10) {
+                healthMetricPill(title: "Distance", value: run.distanceText)
+                healthMetricPill(title: "Heart Rate", value: run.heartRateRangeText)
+            }
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func runDateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE, MMM d"
+        return formatter.string(from: date)
     }
 
     private func healthMetricPill(title: String, value: String) -> some View {
@@ -371,6 +604,7 @@ struct ContentView: View {
         dailyLoad += points
         events.append(LogEvent(id: UUID(), title: title, points: points, emoji: emoji, date: Date()))
         saveEvents()
+        saveStateToICloud()
         shouldScrollToTodayLog = true
     }
 
@@ -383,9 +617,29 @@ struct ContentView: View {
         }
 
         let remainingFlexEvents = updatedEvents.filter { $0.title == "Flex Meal" }.count
-        flexMealsRemaining = max(0, min(2, 2 - remainingFlexEvents))
+        flexMealsRemaining = max(0, min(1, 1 - remainingFlexEvents))
         usedFlexToday = remainingFlexEvents > 0
         saveEvents()
+        saveStateToICloud()
+    }
+
+    private func clampFlexMealsToWeeklyLimit() {
+        flexMealsRemaining = max(0, min(1, flexMealsRemaining))
+    }
+
+    private var nextFlexResetText: String {
+        guard let nextWeekStart = calendar.nextDate(
+            after: Date(),
+            matching: DateComponents(weekday: calendar.firstWeekday),
+            matchingPolicy: .nextTime,
+            direction: .forward
+        ) else {
+            return "next week"
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: nextWeekStart)
     }
 
     private func pointsText(_ value: Int) -> String {
@@ -408,14 +662,14 @@ struct ContentView: View {
     private func resetFlexMealsIfNewWeek() {
         let currentWeek = weekKey()
         guard lastFlexResetWeek != currentWeek else { return }
-        flexMealsRemaining = 2
+        flexMealsRemaining = 1
         lastFlexResetWeek = currentWeek
     }
 
     private func migrateStreakAndFlexIfNeeded() {
         guard !didRunStreakZeroMigration else { return }
         streak = 0
-        flexMealsRemaining = 2
+        flexMealsRemaining = 1
         lastFlexResetWeek = weekKey()
         usedFlexToday = false
         dailyLoad = 0
@@ -423,6 +677,7 @@ struct ContentView: View {
         saveEvents()
         lastSavedDay = todayKey()
         didRunStreakZeroMigration = true
+        saveStateToICloud()
     }
 
     private func rolloverIfNewDay() {
@@ -445,6 +700,7 @@ struct ContentView: View {
         events = []
         saveEvents()
         lastSavedDay = today
+        saveStateToICloud()
     }
 
     private func saveEvents() {
@@ -459,6 +715,46 @@ struct ContentView: View {
             return
         }
         events = decoded.filter { calendar.isDateInToday($0.date) }
+    }
+
+    private func saveStateToICloud() {
+        let store = NSUbiquitousKeyValueStore.default
+
+        store.set(true, forKey: "steady.hasSavedState")
+        store.set(dailyLoad, forKey: "steady.dailyLoad")
+        store.set(streak, forKey: "steady.streak")
+        store.set(flexMealsRemaining, forKey: "steady.flexMealsRemaining")
+        store.set(lastSavedDay, forKey: "steady.lastSavedDay")
+        store.set(didRunStreakZeroMigration, forKey: "steady.didRunStreakZeroMigration")
+        store.set(lastFlexResetWeek, forKey: "steady.lastFlexResetWeek")
+        store.set(usedFlexToday, forKey: "steady.usedFlexToday")
+
+        if let data = try? JSONEncoder().encode(events) {
+            store.set(data, forKey: "steady.events")
+        }
+
+        store.synchronize()
+    }
+
+    private func restoreFromICloudIfAvailable() {
+        let store = NSUbiquitousKeyValueStore.default
+        store.synchronize()
+
+        guard store.bool(forKey: "steady.hasSavedState") else { return }
+
+        dailyLoad = Int(store.longLong(forKey: "steady.dailyLoad"))
+        streak = Int(store.longLong(forKey: "steady.streak"))
+        flexMealsRemaining = max(0, min(1, Int(store.longLong(forKey: "steady.flexMealsRemaining")))
+        lastSavedDay = store.string(forKey: "steady.lastSavedDay") ?? ""
+        didRunStreakZeroMigration = store.bool(forKey: "steady.didRunStreakZeroMigration")
+        lastFlexResetWeek = store.string(forKey: "steady.lastFlexResetWeek") ?? ""
+        usedFlexToday = store.bool(forKey: "steady.usedFlexToday")
+
+        if let data = store.data(forKey: "steady.events"),
+           let decoded = try? JSONDecoder().decode([LogEvent].self, from: data) {
+            events = decoded.filter { calendar.isDateInToday($0.date) }
+            saveEvents()
+        }
     }
 }
 
